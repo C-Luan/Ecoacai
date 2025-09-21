@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ScheduleCollectionScreen extends StatefulWidget {
   const ScheduleCollectionScreen({super.key});
@@ -11,18 +13,76 @@ class ScheduleCollectionScreen extends StatefulWidget {
 
 class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
   DateTime? _selectedDate;
-  final List<int> _availableDays = [5, 8, 12, 15, 19, 22, 26, 29];
   DateTime _focusedDay = DateTime.now();
   final _quantityController = TextEditingController();
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  bool _isSaving = false;
+  bool _isLoadingCounts = true;
+  Map<int, int> _collectionCounts = {};
 
   @override
   void initState() {
     super.initState();
-    // Garante que o mês focado é o mês atual ao iniciar.
+    Intl.defaultLocale = 'pt_BR';
     _focusedDay = DateTime.now();
+    _fetchCollectionCountsForMonth(_focusedDay);
   }
 
-  void _confirmSchedule() {
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  // Função para buscar a contagem de coletas para o mês em foco
+  Future<void> _fetchCollectionCountsForMonth(DateTime month) async {
+    setState(() {
+      _isLoadingCounts = true;
+    });
+
+    final startOfMonth = DateTime(month.year, month.month, 1);
+    final endOfMonth = DateTime(month.year, month.month + 1, 0);
+
+    try {
+      final snapshot = await _firestore
+          .collection('solicitacoes')
+          .where('dataSolicitacao', isGreaterThanOrEqualTo: startOfMonth)
+          .where('dataSolicitacao', isLessThanOrEqualTo: endOfMonth)
+          .get();
+
+      final Map<int, int> counts = {};
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data.containsKey('dataSolicitacao')) {
+          final Timestamp timestamp = data['dataSolicitacao'];
+          final day = timestamp.toDate().day;
+          counts[day] = (counts[day] ?? 0) + 1;
+        }
+      }
+      setState(() {
+        _collectionCounts = counts;
+      });
+    } catch (e) {
+      debugPrint('Erro ao buscar contagem de coletas: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao carregar os dias disponíveis: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingCounts = false;
+      });
+    }
+  }
+
+  // Função para salvar o agendamento no Firebase
+  Future<void> _scheduleCollection() async {
+    final user = _auth.currentUser;
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -33,29 +93,85 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            'Coleta agendada para ${DateFormat('dd/MM/yyyy', 'pt_BR').format(_selectedDate!)}.'),
-        backgroundColor: Theme.of(context).colorScheme.secondary,
-      ),
-    );
-    Navigator.pop(context);
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erro: Nenhum usuário logado.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      // 1. Busca o posto de coleta do usuário
+      final postoSnapshot = await _firestore.collection('postos')
+          .where('cidadaoId', isEqualTo: user.uid)
+          .get();
+
+      if (postoSnapshot.docs.isEmpty) {
+        throw Exception('Nenhum posto de coleta encontrado para o seu perfil. Por favor, cadastre um.');
+      }
+
+      final postoId = postoSnapshot.docs.first.id;
+
+      // 2. Cria o novo documento de solicitação
+      final double quantidade = double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0.0;
+      final newSolicitacao = {
+        'postoId': postoId,
+        'dataSolicitacao': Timestamp.fromDate(_selectedDate!),
+        'quantidadeEstimada': quantidade,
+        'status': 'Agendada',
+        'dataCriacao': FieldValue.serverTimestamp(),
+      };
+
+      // 3. Adiciona o documento na coleção 'solicitacoes'
+      await _firestore.collection('solicitacoes').add(newSolicitacao);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Coleta agendada para ${DateFormat('dd/MM/yyyy', 'pt_BR').format(_selectedDate!)}.'),
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+        ),
+      );
+      Navigator.pop(context);
+    } on FirebaseException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro do Firebase: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao agendar coleta: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
   }
 
   bool _isDateAvailable(DateTime date) {
-    // Bloqueia datas passadas
     if (date.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
       return false;
     }
-    // Verifica se o dia do mês está na lista de dias disponíveis
-    return _availableDays.contains(date.day);
+    final count = _collectionCounts[date.day] ?? 0;
+    return count < 50;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    
       appBar: AppBar(
         title: const Text('Agendar Coleta'),
       ),
@@ -64,7 +180,9 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCalendar(),
+            _isLoadingCounts
+                ? const Center(child: CircularProgressIndicator())
+                : _buildCalendar(),
             const SizedBox(height: 24.0),
             TextField(
               controller: _quantityController,
@@ -75,16 +193,22 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                 suffixText: 'kg',
                 suffixStyle: Theme.of(context).textTheme.bodyLarge,
               ),
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 24.0),
             FilledButton(
-              onPressed: _selectedDate != null ? _confirmSchedule : null,
+              onPressed: _isSaving || _selectedDate == null ? null : _scheduleCollection,
               style: FilledButton.styleFrom(
                 backgroundColor: _selectedDate != null ? const Color(0xFF059669) : Colors.grey.shade400,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Confirmar Agendamento'),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Confirmar Agendamento'),
             ),
           ],
         ),
@@ -93,14 +217,10 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
   }
 
   Widget _buildCalendar() {
-    // Calcula o primeiro dia do mês focado
     final firstDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month, 1);
-    // Calcula o último dia do mês focado
     final lastDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-    // Quantidade de dias no mês focado
     final daysInMonth = lastDayOfMonth.day;
-    // Dia da semana do primeiro dia do mês (1 para segunda, 7 para domingo)
-    final firstWeekday = firstDayOfMonth.weekday; // De 1 (segunda) a 7 (domingo)
+    final firstWeekday = firstDayOfMonth.weekday;
 
     return Card(
       color: Colors.blueGrey[50],
@@ -116,30 +236,30 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                   onPressed: () {
                     setState(() {
                       _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
-                      _selectedDate = null; // Limpa a seleção ao mudar de mês
+                      _selectedDate = null;
+                      _fetchCollectionCountsForMonth(_focusedDay);
                     });
                   },
                 ),
                 Text(
-                  // Exibe o mês e ano formatados
                   DateFormat.yMMMM('pt_BR').format(_focusedDay),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                          fontWeight: FontWeight.bold,
+                        ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () {
                     setState(() {
                       _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
-                      _selectedDate = null; // Limpa a seleção ao mudar de mês
+                      _selectedDate = null;
+                      _fetchCollectionCountsForMonth(_focusedDay);
                     });
                   },
                 ),
               ],
             ),
             const SizedBox(height: 16.0),
-            // Cabeçalho dos dias da semana
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -155,13 +275,12 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
               ),
-              itemCount: (firstWeekday % 7) + daysInMonth, // Total de células a serem preenchidas
+              itemCount: (firstWeekday % 7) + daysInMonth,
               itemBuilder: (context, index) {
-                // Calcula o dia do mês para a célula atual
-                final day = index - (firstWeekday % 7) + 1; // Ajusta para domingo ser o primeiro dia da semana (índice 0)
+                final day = index - (firstWeekday % 7) + 1;
 
                 if (day <= 0 || day > daysInMonth) {
-                  return const SizedBox(); // Células vazias para preencher o início ou fim do GridView
+                  return const SizedBox();
                 }
 
                 final date = DateTime(_focusedDay.year, _focusedDay.month, day);
@@ -170,6 +289,8 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                     date.day == _selectedDate!.day &&
                     date.month == _selectedDate!.month &&
                     date.year == _selectedDate!.year;
+                
+                final count = _collectionCounts[date.day] ?? 0;
 
                 return GestureDetector(
                   onTap: isAvailable
@@ -189,16 +310,29 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                       ),
                     ),
                     child: Center(
-                      child: Text(
-                        '$day',
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : isAvailable
-                                  ? Theme.of(context).textTheme.bodyLarge?.color
-                                  : Colors.grey[400],
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$day',
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : isAvailable
+                                      ? Theme.of(context).textTheme.bodyLarge?.color
+                                      : Colors.grey[400],
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          if (isAvailable && count > 0)
+                            Text(
+                              '$count/50',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isSelected ? Colors.white70 : Theme.of(context).textTheme.bodySmall?.color,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),

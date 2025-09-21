@@ -3,5 +3,13 @@
          the Flutter tool needs it to communicate with the running application
          to allow setting breakpoints, to provide hot reload, etc.
     -->
-    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Permissões para localização -->
+    <!-- <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /> -->
+    <!--
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    Se você precisar de acesso à localização em segundo plano
+    -->
 </manifest>

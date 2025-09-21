@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,11 +15,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  void _register() {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _register() async {
+    final email = _emailController.text;
+
+    // Regex simples para validação de e-mail
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+
     if (_nameController.text.isEmpty ||
         _establishmentController.text.isEmpty ||
         _addressController.text.isEmpty ||
-        _emailController.text.isEmpty ||
+        email.isEmpty ||
         _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -26,21 +34,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Colors.red,
         ),
       );
-    } else {
+      return;
+    }
+
+    if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Cadastro realizado com sucesso!'),
-          backgroundColor: Theme.of(context).colorScheme.secondary,
+        const SnackBar(
+          content: Text('Por favor, insira um e-mail válido.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: _passwordController.text,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cadastro realizado com sucesso!'),
+          backgroundColor: Color(0xFF059669),
         ),
       );
       Navigator.popUntil(context, ModalRoute.withName('/'));
+
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'weak-password':
+          errorMessage = 'A senha é muito fraca. Escolha uma senha mais forte.';
+          break;
+        case 'email-already-in-use':
+          errorMessage = 'Este e-mail já está cadastrado. Por favor, faça o login ou use outro e-mail.';
+          break;
+        default:
+          errorMessage = 'Ocorreu um erro no cadastro. Por favor, tente novamente.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro inesperado: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-   
       appBar: AppBar(
         title: const Text('Cadastro'),
       ),
@@ -91,12 +142,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 obscureText: true,
               ),
               const SizedBox(height: 24.0),
-              FilledButton(
-                onPressed: _register,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
+              SizedBox(
+                width: 200,
+                child: FilledButton(
+                  onPressed: _register,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                  ),
+                  child: const Text('Cadastrar'),
                 ),
-                child: const Text('Cadastrar'),
               ),
             ],
           ),

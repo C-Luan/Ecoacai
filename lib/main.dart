@@ -1,3 +1,7 @@
+import 'package:ecoacai/firebase_options.dart';
+import 'package:ecoacai/screens/auth_wrapper.dart';
+import 'package:ecoacai/screens/profile_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -6,7 +10,8 @@ import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
-  // Inicializa o pacote intl para lidar com datas e idiomas.
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   Intl.defaultLocale = 'pt_BR';
   await initializeDateFormatting('pt_BR', null);
   runApp(const EcoAcaiApp());
@@ -18,7 +23,6 @@ class EcoAcaiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      
       title: 'Caroço de Açaí',
       debugShowCheckedModeBanner: false,
 
@@ -87,7 +91,9 @@ class EcoAcaiApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginScreen(),
+        '/': (context) => const AuthWrapper(),
+        '/login': (context) => const LoginScreen(),
+        '/profile': (context) => const ProfileScreen(),
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(),
       },

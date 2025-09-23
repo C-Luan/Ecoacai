@@ -7,56 +7,20 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:222587728263:android:4badac9119226c1c8ca322",
-        "android_client_info": {
-          "package_name": "com.example.ecoacai"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "222587728263-gi0oblb796j53rljfcvkhh5br1rg08uk.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.ecoacai",
-            "certificate_hash": "09d5d398c31109e3419c9175503a1e84196efe7b"
-          }
-        },
-        {
-          "client_id": "222587728263-is8jlinl2n15rim0v2ga35o0m0h3rabq.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyAjhRdpi101vrfwbu0gFfBnd5x3apS8YtM"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "222587728263-is8jlinl2n15rim0v2ga35o0m0h3rabq.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "222587728263-j5jklbfciuqnp96oknr84oqf1ustd4ps.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "dev.adatech.ecoacai"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
         "mobilesdk_app_id": "1:222587728263:android:a51c6f54f903be308ca322",
         "android_client_info": {
           "package_name": "dev.adatech.ecoacai"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "222587728263-7k5ef5ok44kacm4apmq4u5k3djoeb6cm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "dev.adatech.ecoacai",
+            "certificate_hash": "789fd52950a83b286ea8346e0931b617f4b0e0d5"
+          }
+        },
         {
           "client_id": "222587728263-bdlb2nl7gr1jievqljgjqg1cn0nc66ks.apps.googleusercontent.com",
           "client_type": 1,

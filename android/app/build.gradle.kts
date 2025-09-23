@@ -1,3 +1,19 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+// Load the key.properties file from the project's root directory.
+// 'val' is used for variable declaration in Kotlin, replacing 'def'.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+
+// Check if the properties file exists before trying to read it.
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use {
+        keystoreProperties.load(it)
+    }
+} else {
+    println("Keystore properties file not found.")
+}
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -32,12 +48,20 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
+    signingConfigs {
+        create("release") {
+            // Check for the existence of the properties before assigning them
+            storeFile = keystoreProperties["storeFile"]?.let { file(it as String) } ?: throw Exception("storeFile not found in key.properties")
+            storePassword = keystoreProperties["storePassword"] as String
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+        }
+    }
 
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+       getByName("release") {
+            // ... other release configurations
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

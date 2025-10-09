@@ -109,18 +109,22 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
 
     try {
       // 1. Busca o posto de coleta do usuário
-      final postoSnapshot = await _firestore.collection('postos')
+      final postoSnapshot = await _firestore
+          .collection('postos')
           .where('cidadaoId', isEqualTo: user.uid)
           .get();
 
       if (postoSnapshot.docs.isEmpty) {
-        throw Exception('Nenhum posto de coleta encontrado para o seu perfil. Por favor, cadastre um.');
+        throw Exception(
+          'Nenhum posto de coleta encontrado para o seu perfil. Por favor, cadastre um.',
+        );
       }
 
       final postoId = postoSnapshot.docs.first.id;
 
       // 2. Cria o novo documento de solicitação
-      final double quantidade = double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0.0;
+      final double quantidade =
+          double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0.0;
       final newSolicitacao = {
         'postoId': postoId,
         'dataSolicitacao': Timestamp.fromDate(_selectedDate!),
@@ -135,7 +139,8 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Coleta agendada para ${DateFormat('dd/MM/yyyy', 'pt_BR').format(_selectedDate!)}.'),
+            'Coleta agendada para ${DateFormat('dd/MM/yyyy', 'pt_BR').format(_selectedDate!)}.',
+          ),
           backgroundColor: Theme.of(context).colorScheme.secondary,
         ),
       );
@@ -162,19 +167,31 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
   }
 
   bool _isDateAvailable(DateTime date) {
-    if (date.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
+    // Bloqueia datas anteriores a hoje
+    if (date.isBefore(DateTime.now().subtract(const Duration(days: 0))) ||
+        date.isBefore(DateTime(2025, 10, 11))) {
       return false;
     }
+
+    // Bloqueia datas após 13/10/2025
+    if (date.isAfter(DateTime(2025, 10, 15))) {
+      return false;
+    }
+
+    // Bloqueia finais de semana (sábado = 6, domingo = 7)
+    if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
+      return false;
+    }
+
+    // Verifica limite de agendamentos
     final count = _collectionCounts[date.day] ?? 0;
-    return count < 50;
+    return count < 15;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agendar Coleta'),
-      ),
+      appBar: AppBar(title: const Text('Agendar Coleta')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -193,20 +210,29 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                 suffixText: 'kg',
                 suffixStyle: Theme.of(context).textTheme.bodyLarge,
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 24.0),
             FilledButton(
-              onPressed: _isSaving || _selectedDate == null ? null : _scheduleCollection,
+              onPressed: _isSaving || _selectedDate == null
+                  ? null
+                  : _scheduleCollection,
               style: FilledButton.styleFrom(
-                backgroundColor: _selectedDate != null ? const Color(0xFF059669) : Colors.grey.shade400,
+                backgroundColor: _selectedDate != null
+                    ? const Color(0xFF059669)
+                    : Colors.grey.shade400,
                 foregroundColor: Colors.white,
               ),
               child: _isSaving
                   ? const SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Text('Confirmar Agendamento'),
             ),
@@ -235,7 +261,11 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () {
                     setState(() {
-                      _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+                      _focusedDay = DateTime(
+                        _focusedDay.year,
+                        _focusedDay.month - 1,
+                        1,
+                      );
                       _selectedDate = null;
                       _fetchCollectionCountsForMonth(_focusedDay);
                     });
@@ -243,15 +273,19 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                 ),
                 Text(
                   DateFormat.yMMMM('pt_BR').format(_focusedDay),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () {
                     setState(() {
-                      _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
+                      _focusedDay = DateTime(
+                        _focusedDay.year,
+                        _focusedDay.month + 1,
+                        1,
+                      );
                       _selectedDate = null;
                       _fetchCollectionCountsForMonth(_focusedDay);
                     });
@@ -262,9 +296,17 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
             const SizedBox(height: 16.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                'Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'
-              ].map((day) => Text(day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))).toList(),
+              children: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+                  .map(
+                    (day) => Text(
+                      day,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 8.0),
             GridView.builder(
@@ -285,11 +327,12 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
 
                 final date = DateTime(_focusedDay.year, _focusedDay.month, day);
                 final isAvailable = _isDateAvailable(date);
-                final isSelected = _selectedDate != null &&
+                final isSelected =
+                    _selectedDate != null &&
                     date.day == _selectedDate!.day &&
                     date.month == _selectedDate!.month &&
                     date.year == _selectedDate!.year;
-                
+
                 final count = _collectionCounts[date.day] ?? 0;
 
                 return GestureDetector(
@@ -302,10 +345,18 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                       : null,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected ? Theme.of(context).colorScheme.secondary : (isAvailable ? Theme.of(context).colorScheme.secondary.withOpacity(0.1) : Colors.transparent),
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.secondary
+                          : (isAvailable
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.secondary.withOpacity(0.1)
+                                : Colors.transparent),
                       borderRadius: BorderRadius.circular(8.0),
                       border: Border.all(
-                        color: isAvailable ? Theme.of(context).colorScheme.secondary : Colors.transparent,
+                        color: isAvailable
+                            ? Theme.of(context).colorScheme.secondary
+                            : Colors.transparent,
                         width: 1.0,
                       ),
                     ),
@@ -319,9 +370,11 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                               color: isSelected
                                   ? Colors.white
                                   : isAvailable
-                                      ? Theme.of(context).textTheme.bodyLarge?.color
-                                      : Colors.grey[400],
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ? Theme.of(context).textTheme.bodyLarge?.color
+                                  : Colors.grey[400],
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                           if (isAvailable && count > 0)
@@ -329,7 +382,11 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                               '$count/50',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: isSelected ? Colors.white70 : Theme.of(context).textTheme.bodySmall?.color,
+                                color: isSelected
+                                    ? Colors.white70
+                                    : Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall?.color,
                               ),
                             ),
                         ],

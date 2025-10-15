@@ -19,9 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Map<String, dynamic>? _userData;
   bool _isLoading = true;
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -37,24 +35,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (userDoc.exists) {
           setState(() {
-            _userData = userDoc.data() as Map<String, dynamic>;
             _isLoading = false;
           });
         } else {
           setState(() {
-            _errorMessage = 'Dados do usuário não encontrados.';
             _isLoading = false;
           });
         }
       } else {
         setState(() {
-          _errorMessage = 'Nenhum usuário logado.';
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Falha ao carregar dados: $e';
         _isLoading = false;
       });
     }

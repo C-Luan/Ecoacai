@@ -109,6 +109,7 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
 
     try {
       // 1. Busca o posto de coleta do usuário
+
       final postoSnapshot = await _firestore
           .collection('postos')
           .where('cidadaoId', isEqualTo: user.uid)
@@ -125,8 +126,12 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
       // 2. Cria o novo documento de solicitação
       final double quantidade =
           double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0.0;
+      final postoRef = FirebaseFirestore.instance
+          .collection('postos')
+          .doc(postoId);
+
       final newSolicitacao = {
-        'postoId': postoId,
+        'postoId': postoRef.id, // 🔹 agora é uma referência, não apenas o ID
         'dataSolicitacao': Timestamp.fromDate(_selectedDate!),
         'quantidadeEstimada': quantidade,
         'status': 'Agendada',
@@ -379,7 +384,7 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                           ),
                           if (isAvailable && count > 0)
                             Text(
-                              '$count/50',
+                              '$count/15',
                               style: TextStyle(
                                 fontSize: 10,
                                 color: isSelected

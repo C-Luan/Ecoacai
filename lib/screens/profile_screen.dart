@@ -22,7 +22,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Controladores para o formulário
   final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _nomeEstabelecimentoController = TextEditingController();
+  final TextEditingController _nomeEstabelecimentoController =
+      TextEditingController();
   final TextEditingController _ruaController = TextEditingController();
   final TextEditingController _numeroController = TextEditingController();
   final TextEditingController _municipioController = TextEditingController();
@@ -57,7 +58,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final docSnapshot = await _firestore.collection('cidadaos').doc(user.uid).get();
+      final docSnapshot = await _firestore
+          .collection('cidadaos')
+          .doc(user.uid)
+          .get();
       if (docSnapshot.exists) {
         setState(() {
           _userData = docSnapshot.data();
@@ -90,15 +94,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    if (_nomeController.text.isEmpty || _nomeEstabelecimentoController.text.isEmpty ||
-        _ruaController.text.isEmpty || _numeroController.text.isEmpty ||
-        _municipioController.text.isEmpty || _estadoController.text.isEmpty) {
+    if (_nomeController.text.isEmpty ||
+        _nomeEstabelecimentoController.text.isEmpty ||
+        _ruaController.text.isEmpty ||
+        _numeroController.text.isEmpty ||
+        _municipioController.text.isEmpty ||
+        _estadoController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, preencha todos os campos.')),
       );
       return;
     }
-    
+
     setState(() {
       _isLoading = true;
     });
@@ -130,8 +137,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // }
 
       // 2. Salva os dados do posto de coleta, incluindo a localização
+      final cidadaoRef = FirebaseFirestore.instance
+          .collection('cidadaos')
+          .doc(user.uid);
+
       final newPostoData = {
-        'cidadaoId': user.uid,
+        'cidadaoId': cidadaoRef, // 🔹 agora é uma referência, não apenas o UID
         'nome': _nomeEstabelecimentoController.text,
         'endereco': {
           'rua': _ruaController.text,
@@ -142,20 +153,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // 'geopoint': GeoPoint(position.latitude, position.longitude),
       };
       await _firestore.collection('postos').add(newPostoData);
-      
+
       // Navega para a tela principal (HomeScreen) após o sucesso
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }
-
     } catch (e) {
       setState(() {
         _errorMessage = 'Falha ao salvar dados: $e';
       });
       debugPrint('Erro ao salvar dados: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar dados: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao salvar dados: $e')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -204,28 +214,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _auth.signOut();
       Navigator.of(context).pushReplacementNamed('/login');
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao sair: ${e.message}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao sair: ${e.message}')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro inesperado: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro inesperado: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_errorMessage != null) {
-      return Scaffold(
-        body: Center(child: Text(_errorMessage!)),
-      );
+      return Scaffold(body: Center(child: Text(_errorMessage!)));
     }
 
     return Scaffold(
@@ -235,7 +241,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
-        child: _userData == null ? _buildRegistrationForm() : _buildProfileView(),
+        child: _userData == null
+            ? _buildRegistrationForm()
+            : _buildProfileView(),
       ),
     );
   }
@@ -251,7 +259,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 24),
         _buildTextField(_nomeController, 'Seu nome completo'),
         const SizedBox(height: 16),
-        _buildTextField(_nomeEstabelecimentoController, 'Nome do seu estabelecimento'),
+        _buildTextField(
+          _nomeEstabelecimentoController,
+          'Nome do seu estabelecimento',
+        ),
         const SizedBox(height: 16),
         _buildTextField(_ruaController, 'Rua'),
         const SizedBox(height: 16),
@@ -284,7 +295,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileView() {
     final String nome = _userData!['nome'] ?? 'Não informado';
-    final String nomeEstabelecimento = _userData!['nomeEstabelecimento'] ?? 'Não informado';
+    final String nomeEstabelecimento =
+        _userData!['nomeEstabelecimento'] ?? 'Não informado';
     final Map<String, dynamic> endereco = _userData!['endereco'] ?? {};
     final String rua = endereco['rua'] ?? 'Não informado';
     final String numero = endereco['numero'] ?? '';
@@ -305,9 +317,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildInfoText(context, 'Nome do Usuário', nome),
                   const SizedBox(height: 16.0),
-                  _buildInfoText(context, 'Nome do Estabelecimento', nomeEstabelecimento),
+                  _buildInfoText(
+                    context,
+                    'Nome do Estabelecimento',
+                    nomeEstabelecimento,
+                  ),
                   const SizedBox(height: 16.0),
-                  _buildInfoText(context, 'Endereço Completo', enderecoCompleto),
+                  _buildInfoText(
+                    context,
+                    'Endereço Completo',
+                    enderecoCompleto,
+                  ),
                 ],
               ),
             ),
@@ -320,7 +340,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('A edição de perfil estará disponível em breve.'),
+                  content: Text(
+                    'A edição de perfil estará disponível em breve.',
+                  ),
                 ),
               );
             },
@@ -353,15 +375,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Colors.grey[600],
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
         ),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ],
     );

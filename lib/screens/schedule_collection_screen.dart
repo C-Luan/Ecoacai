@@ -15,7 +15,7 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
   DateTime? _selectedDate;
   DateTime _focusedDay = DateTime.now();
   final _quantityController = TextEditingController();
-
+  Map<int, int> _dailyLimits = {};
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -37,16 +37,43 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
     super.dispose();
   }
 
-  // Função para buscar a contagem de coletas para o mês em foco
+  // Função para buscar a contagem de coletas E os limites para o mês em foco
   Future<void> _fetchCollectionCountsForMonth(DateTime month) async {
     setState(() {
       _isLoadingCounts = true;
     });
 
     final startOfMonth = DateTime(month.year, month.month, 1);
-    final endOfMonth = DateTime(month.year, month.month + 1, 0);
+    final endOfMonth = DateTime(
+      month.year,
+      month.month + 1,
+      0,
+      23,
+      59,
+      59,
+    ); // Importante incluir a hora final
 
     try {
+      // 1. Busca os limites disponíveis no mês
+      final limitsSnapshot = await _firestore
+          .collection('diasDisponiveis')
+          .where('data', isGreaterThanOrEqualTo: startOfMonth)
+          .where('data', isLessThanOrEqualTo: endOfMonth)
+          .where('ativo', isEqualTo: true) // Apenas dias ativos
+          .get();
+
+      final Map<int, int> limits = {};
+      for (var doc in limitsSnapshot.docs) {
+        print(doc.data());
+        final data = doc.data();
+        if (data.containsKey('data')) {
+          final Timestamp timestamp = data['data'];
+          final day = timestamp.toDate().day;
+          limits[day] = data['limiteColetas'] as int? ?? 0;
+        }
+      }
+
+      // 2. Busca a contagem de solicitações agendadas no mês
       final snapshot = await _firestore
           .collection('solicitacoes')
           .where('dataSolicitacao', isGreaterThanOrEqualTo: startOfMonth)
@@ -62,17 +89,14 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
           counts[day] = (counts[day] ?? 0) + 1;
         }
       }
+
       setState(() {
-        _collectionCounts = counts;
+        _dailyLimits = limits; // Atualiza os limites diários
+        _collectionCounts = counts; // Atualiza a contagem de coletas
       });
     } catch (e) {
-      debugPrint('Erro ao buscar contagem de coletas: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao carregar os dias disponíveis: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      debugPrint('Erro ao buscar dados do calendário: $e');
+      // ... (restante do tratamento de erro)
     } finally {
       setState(() {
         _isLoadingCounts = false;
@@ -122,17 +146,24 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
       }
 
       final postoId = postoSnapshot.docs.first.id;
+      final selectedDateLocal = _selectedDate!;
+
+      // 2. Converte para UTC. Isso adiciona o offset do seu fuso horário (ex: +3 horas)
+      // Resultado: 2025-10-29 03:00:00Z (ou seja, 00:00:00 no seu fuso)
+      final selectedDateUtc = selectedDateLocal.toUtc();
 
       // 2. Cria o novo documento de solicitação
       final double quantidade =
           double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0.0;
-      final postoRef = FirebaseFirestore.instance
-          .collection('postos')
-          .doc(postoId);
 
       final newSolicitacao = {
-        'postoId': postoRef.id, // 🔹 agora é uma referência, não apenas o ID
-        'dataSolicitacao': Timestamp.fromDate(_selectedDate!),
+        'postoId': postoId,
+        'cidadaoId': user.uid,
+        'Posto': {
+          'nome': postoSnapshot.docs.first['nome'] ?? '',
+          'endereco': postoSnapshot.docs.first['endereco'] ?? '',
+        },
+        'dataSolicitacao': Timestamp.fromDate(selectedDateUtc),
         'quantidadeEstimada': quantidade,
         'status': 'Agendada',
         'dataCriacao': FieldValue.serverTimestamp(),
@@ -172,25 +203,27 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
   }
 
   bool _isDateAvailable(DateTime date) {
-    // Bloqueia datas anteriores a hoje
-    if (date.isBefore(DateTime.now().subtract(const Duration(days: 0))) ||
-        date.isBefore(DateTime(2025, 10, 11))) {
+    // 1. Bloqueia datas anteriores a hoje
+    if (date.isBefore(DateTime.now().subtract(const Duration(days: 0)))) {
       return false;
     }
 
-    // Bloqueia datas após 13/10/2025
-    if (date.isAfter(DateTime(2025, 10, 15))) {
+    // 2. Verifica se a data TEM cadastro na coleção 'diasDisponiveis'
+    // Se não tem limite no mapa, o dia não foi liberado para coleta (indisponível).
+    final limit = _dailyLimits[date.day];
+    if (limit == null || limit <= 0) {
       return false;
     }
 
-    // Bloqueia finais de semana (sábado = 6, domingo = 7)
+    // 3. Bloqueia finais de semana (opcional, se você quiser manter essa regra)
+    // Caso contrário, remova este bloco.
     if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
       return false;
     }
 
-    // Verifica limite de agendamentos
+    // 4. Verifica o limite de agendamentos (usando o limite dinâmico)
     final count = _collectionCounts[date.day] ?? 0;
-    return count < 15;
+    return count < limit; // Agora usa o 'limit' dinâmico em vez de '15'
   }
 
   @override
@@ -332,13 +365,17 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
 
                 final date = DateTime(_focusedDay.year, _focusedDay.month, day);
                 final isAvailable = _isDateAvailable(date);
+
+                final count = _collectionCounts[date.day] ?? 0;
+                final dynamicLimit =
+                    _dailyLimits[date.day] ?? 0; // Pega o limite dinâmico
+
                 final isSelected =
                     _selectedDate != null &&
                     date.day == _selectedDate!.day &&
                     date.month == _selectedDate!.month &&
                     date.year == _selectedDate!.year;
-
-                final count = _collectionCounts[date.day] ?? 0;
+                ;
 
                 return GestureDetector(
                   onTap: isAvailable
@@ -384,7 +421,7 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
                           ),
                           if (isAvailable && count > 0)
                             Text(
-                              '$count/15',
+                              '$count/$dynamicLimit',
                               style: TextStyle(
                                 fontSize: 10,
                                 color: isSelected

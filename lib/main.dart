@@ -8,7 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
-
+import 'package:flutter_localizations/flutter_localizations.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -25,6 +25,14 @@ class EcoAcaiApp extends StatelessWidget {
     return MaterialApp(
       title: 'Caroço de Açaí',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates:  [
+        // Delega o pacote material (botões, rótulos)
+        GlobalMaterialLocalizations.delegate,
+        // Delega o pacote widgets (direção de texto)
+        GlobalWidgetsLocalizations.delegate,
+        // Delega o pacote cupertino (design iOS)
+        GlobalCupertinoLocalizations.delegate,
+      ],
 
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.white,

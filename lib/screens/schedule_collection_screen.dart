@@ -217,7 +217,7 @@ class _ScheduleCollectionScreenState extends State<ScheduleCollectionScreen> {
 
     // 3. Bloqueia finais de semana (opcional, se você quiser manter essa regra)
     // Caso contrário, remova este bloco.
-    if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
+    if ( date.weekday == DateTime.sunday) {
       return false;
     }
 
